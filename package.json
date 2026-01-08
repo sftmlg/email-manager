@@ -1,0 +1,36 @@
+{
+  "name": "email-manager",
+  "version": "1.0.0",
+  "description": "Gmail management tool - OAuth, fetch, send, and draft emails",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "auth": "pnpm run build && node dist/index.js auth",
+    "fetch": "pnpm run build && node dist/index.js fetch",
+    "send": "pnpm run build && node dist/index.js send",
+    "draft": "pnpm run build && node dist/index.js draft",
+    "drafts": "pnpm run build && node dist/index.js drafts",
+    "status": "pnpm run build && node dist/index.js status"
+  },
+  "keywords": [
+    "gmail",
+    "email",
+    "sync",
+    "send",
+    "draft",
+    "attachments",
+    "claude-code"
+  ],
+  "author": "David",
+  "license": "PRIVATE",
+  "dependencies": {
+    "googleapis": "^144.0.0",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0"
+  }
+}
