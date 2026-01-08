@@ -49,23 +49,40 @@ pnpm status business
 - Refresh tokens handle automatic renewal
 - Re-authenticate if token expires: `pnpm auth [account]`
 
+## Critical Email Rules
+
+**NEVER include in client emails:**
+- ❌ Invoice amounts, VAT, totals (already in PDF attachment)
+- ❌ Due dates or payment terms (already in PDF attachment)
+- ❌ Google Drive links (Drive is internal documentation only)
+
+**ALWAYS use:**
+- ✅ Correct German characters: ü ö ä ß (NOT ue oe ae ss)
+- ✅ "Beste Grüße" (NOT "Beste Gruesse")
+- ✅ Keep emails brief - all details are in the attachment
+
+## Draft Management Rules
+
+**"Update draft" = Delete old + Create new**
+- When updating a draft, delete the old one first, then create a new one
+- Never leave multiple drafts for the same email
+- Only one draft per recipient/subject should exist
+
+```bash
+# Update draft workflow:
+pnpm delete-draft business <old-draft-id>
+pnpm draft business --to "..." --subject "..." --body "..." --attach "..."
+```
+
 ## Email Templates
 
 ### Austrian Client Invoice (SIT Tirol)
 ```
 Betreff: Rechnung #2026-01-003 - SIT Automatisierung
 
-Hallo Michael,
+Hallo Michi,
 
 anbei findest du die Rechnung für die SIT Automatisierung.
-
-Rechnungsdetails:
-- Rechnungsnummer: #2026-01-003
-- Betrag: 5.985,00 € netto + 1.197,00 € USt. (20%) = 7.182,00 € brutto
-- Fällig: 15.01.2026 (7 Tage)
-
-Die Rechnung liegt auch im geteilten Drive-Ordner:
-[DRIVE_LINK]
 
 Bei Fragen melde dich gerne.
 
@@ -81,13 +98,7 @@ Hi [Name],
 
 please find attached the invoice for Phase 1 development work.
 
-Invoice Details:
-- Invoice Number: #2026-01-004
-- Amount: 2.800,00 € (net, reverse charge applies)
-- Due Date: 22.01.2026 (14 days)
-
-The invoice is also available in our shared Drive folder:
-[DRIVE_LINK]
+Let me know if you have any questions.
 
 Best regards,
 David
@@ -101,13 +112,7 @@ Hallo [Name],
 
 anbei die Rechnung für die 50% Anzahlung des Projekts.
 
-Rechnungsdetails:
-- Rechnungsnummer: #2026-01-005
-- Betrag: 4.987,50 € netto + 997,50 € USt. (20%) = 5.985,00 € brutto
-- Fällig: DD.MM.YYYY (7 Tage)
-
-Die Rechnung liegt auch im geteilten Drive-Ordner:
-[DRIVE_LINK]
+Bei Fragen melde dich gerne.
 
 Beste Grüße,
 David
@@ -121,27 +126,18 @@ David
 cd invoice-generator
 node index.mjs generate --client "sit-tirol" --description "Softwareentwicklung" --quantity 20 --price 70 --days 7
 
-# 2. Upload to Google Drive
+# 2. Upload to Google Drive (internal backup only)
 cd ../drive-manager
 node index.mjs upload business "./invoice-generator/output/260108_2026-01-003.pdf" "FOLDER_ID"
-# Returns: File ID and Drive Link
 
-# 3. Draft email with attachment
+# 3. Draft email with attachment (NO invoice details, NO Drive links)
 cd ../email-manager
 pnpm draft business \
   --to "michael@sager.co.at" \
   --subject "Rechnung #2026-01-003 - SIT Automatisierung" \
-  --body "Hallo Michael,
+  --body "Hallo Michi,
 
 anbei findest du die Rechnung für die SIT Automatisierung.
-
-Rechnungsdetails:
-- Rechnungsnummer: #2026-01-003
-- Betrag: 5.985,00 € netto + 1.197,00 € USt. (20%) = 7.182,00 € brutto
-- Fällig: 15.01.2026 (7 Tage)
-
-Die Rechnung liegt auch im geteilten Drive-Ordner:
-https://drive.google.com/file/d/FILE_ID/view
 
 Bei Fragen melde dich gerne.
 
@@ -275,18 +271,22 @@ pnpm draft business --to "..." --subject "..." --body "..." --attach "/absolute/
 
 ### Invoice to Austrian Client
 ```bash
-# Generate → Upload → Draft with Drive link
+# Generate → Upload (internal) → Draft with attachment only
 cd invoice-generator && node index.mjs generate --client "sit-tirol" --description "..." --quantity 20 --price 70 --days 7
-cd ../drive-manager && node index.mjs upload business "..." "FOLDER_ID"
-cd ../email-manager && pnpm draft business --to "..." --subject "Rechnung #..." --body "..." --attach "..."
+cd ../drive-manager && node index.mjs upload business "..." "FOLDER_ID"  # Internal backup
+cd ../email-manager && pnpm draft business --to "..." --subject "Rechnung #..." \
+  --body "Hallo ..., anbei die Rechnung. Bei Fragen melde dich gerne. Beste Grüße, David" \
+  --attach "../invoice-generator/output/..."
 ```
 
 ### Invoice to German Client (Reverse Charge)
 ```bash
-# Generate with reverse charge → Upload → Draft in English
+# Generate with reverse charge → Upload (internal) → Draft in English
 cd invoice-generator && node index.mjs generate --client "asd" --description "..." --quantity 40 --price 70 --reverse-charge
-cd ../drive-manager && node index.mjs upload business "..." "FOLDER_ID"
-cd ../email-manager && pnpm draft business --to "..." --subject "Invoice #..." --body "..." --attach "..."
+cd ../drive-manager && node index.mjs upload business "..." "FOLDER_ID"  # Internal backup
+cd ../email-manager && pnpm draft business --to "..." --subject "Invoice #..." \
+  --body "Hi ..., please find attached the invoice. Let me know if you have any questions. Best regards, David" \
+  --attach "../invoice-generator/output/..."
 ```
 
 ### Quick Email without Attachment

@@ -89,6 +89,9 @@ async function main() {
     case "drafts":
       await listDrafts(args[1] || "all");
       break;
+    case "delete-draft":
+      await deleteDraft(args[1], args[2]);
+      break;
     case "status":
       showStatus();
       break;
@@ -317,6 +320,43 @@ async function createDraft(args: string[]) {
   }
 }
 
+async function deleteDraft(accountKey: string, draftId: string) {
+  console.log("=== Delete Draft ===\n");
+
+  if (!accountKey || accountKey === "all") {
+    console.error("Error: Please specify an account (personal or business)");
+    process.exit(1);
+  }
+
+  if (!draftId) {
+    console.error("Error: Please specify a draft ID");
+    console.error("Usage: pnpm delete-draft <account> <draft-id>");
+    process.exit(1);
+  }
+
+  const account = ACCOUNTS[accountKey];
+  if (!account) {
+    console.error(`Unknown account: ${accountKey}`);
+    process.exit(1);
+  }
+
+  try {
+    const auth = await getAuthenticatedClient(account);
+    const gmail = new GmailClient(auth, account.email);
+    const profile = await gmail.getProfile();
+    account.email = profile.email;
+
+    console.log(`Deleting draft from: ${profile.email}`);
+    console.log(`Draft ID: ${draftId}`);
+
+    await gmail.deleteDraft(draftId);
+    console.log(`\nDraft deleted successfully!`);
+  } catch (error) {
+    console.error("Error deleting draft:", error);
+    process.exit(1);
+  }
+}
+
 async function listDrafts(accountKey: string) {
   console.log("=== List Drafts ===\n");
 
@@ -376,6 +416,7 @@ Commands:
   send <account> [options]    Send an email
   draft <account> [options]   Create a draft email
   drafts [account]            List all drafts
+  delete-draft <account> <id> Delete a draft by ID
   status                      Show sync status
   help                        Show this help
 

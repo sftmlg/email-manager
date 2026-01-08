@@ -253,6 +253,23 @@ export class GmailClient {
     return response.data.id || draftId;
   }
 
+  async deleteDraft(draftId: string): Promise<void> {
+    await this.gmail.users.drafts.delete({
+      userId: "me",
+      id: draftId,
+    });
+  }
+
+  private encodeSubject(subject: string): string {
+    // Check if subject contains non-ASCII characters
+    if (/[^\x00-\x7F]/.test(subject)) {
+      // RFC 2047 encoded-word syntax for UTF-8
+      const encoded = Buffer.from(subject, 'utf-8').toString('base64');
+      return `=?UTF-8?B?${encoded}?=`;
+    }
+    return subject;
+  }
+
   private createMimeMessage(options: SendEmailOptions): string {
     const boundary = "boundary_" + Date.now();
     const nl = "\r\n";
@@ -270,7 +287,7 @@ export class GmailClient {
       message.push(`Bcc: ${options.bcc}`);
     }
 
-    message.push(`Subject: ${options.subject}`);
+    message.push(`Subject: ${this.encodeSubject(options.subject)}`);
     message.push(`MIME-Version: 1.0`);
 
     if (options.attachments && options.attachments.length > 0) {
