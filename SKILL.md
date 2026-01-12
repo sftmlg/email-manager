@@ -118,6 +118,35 @@ Beste Grüße,
 David
 ```
 
+### Technical Sales / Estimate (Website Optimization)
+```
+Betreff: Mobile-Optimierung – Angebot wie besprochen
+
+Hallo [Name],
+
+wie besprochen: Mobile-Optimierung für [website].
+
+(Und ja, österreichische Nummer – aber für Nachbarn mache ich auch mal eine Ausnahme! 😄)
+
+Estimation mit AI-Tools: ca. €600-800
+- Viewport & responsive CSS
+- Mobile Navigation
+- Touch-optimierte Elemente
+- Testing auf gängigen Geräten
+
+Interesse? Dann melden wir uns einfach kurz.
+
+Grüße,
+David
+```
+**Style Notes**:
+- Short (~80 words) - busy clients appreciate brevity
+- Reference prior conversation (builds rapport)
+- Personal touch (Austrian neighbor joke)
+- Price upfront (they asked for estimate)
+- Simple scope bullets (credibility without overwhelming)
+- Low-pressure CTA
+
 ## Integration with Invoice Generator
 
 ### Complete Invoice Workflow
