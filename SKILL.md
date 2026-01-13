@@ -232,7 +232,7 @@ Show account sync status and authentication state.
 ## Account Configuration
 
 ### Personal Account
-- Primary: `david@software-moling.com` (or personal Gmail)
+- Primary: `mail@software-moling.com` (or personal Gmail)
 - Use: Personal communications, networking
 
 ### Business Account
