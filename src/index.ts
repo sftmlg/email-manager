@@ -78,7 +78,7 @@ async function main() {
       await authenticate(args[1] || "all");
       break;
     case "fetch":
-      await fetchEmails(args[1] || "all", args[2], args[3]);
+      await fetchEmails(args[1] || "all", args[2], args[3], args[4]);
       break;
     case "send":
       await sendEmail(args.slice(1));
@@ -122,7 +122,7 @@ async function authenticate(accountKey: string) {
   }
 }
 
-async function fetchEmails(accountKey: string, startDateStr?: string, endDateStr?: string) {
+async function fetchEmails(accountKey: string, startDateStr?: string, endDateStr?: string, query?: string) {
   console.log("=== Gmail Email Fetch ===\n");
 
   const startDate = startDateStr ? new Date(startDateStr) : new Date("2024-01-01");
@@ -161,6 +161,7 @@ async function fetchEmails(accountKey: string, startDateStr?: string, endDateStr
         account,
         startDate: effectiveStart,
         endDate: endDate,
+        query: query,
       });
 
       console.log(`\nFound ${messages.length} messages`);
