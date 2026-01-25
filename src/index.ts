@@ -23,7 +23,7 @@ import { fileURLToPath } from "url";
 import { getAuthenticatedClient } from "./auth.js";
 import { GmailClient } from "./gmail.js";
 import { SyncStateManager } from "./sync-state.js";
-import type { AccountConfig, SendEmailOptions, AttachmentFile } from "./types.js";
+import type { AccountConfig, SendEmailOptions, AttachmentFile, AttachmentInfo } from "./types.js";
 
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -78,7 +78,10 @@ async function main() {
       await authenticate(args[1] || "all");
       break;
     case "fetch":
-      await fetchEmails(args[1] || "all", args[2], args[3]);
+      const forceIndex = args.indexOf("--force");
+      const forceHistorical = forceIndex !== -1;
+      const fetchArgs = forceHistorical ? args.filter((_, i) => i !== forceIndex) : args;
+      await fetchEmails(fetchArgs[1] || "all", fetchArgs[2], fetchArgs[3], forceHistorical);
       break;
     case "send":
       await sendEmail(args.slice(1));
@@ -122,11 +125,15 @@ async function authenticate(accountKey: string) {
   }
 }
 
-async function fetchEmails(accountKey: string, startDateStr?: string, endDateStr?: string) {
+async function fetchEmails(accountKey: string, startDateStr?: string, endDateStr?: string, forceHistorical: boolean = false) {
   console.log("=== Gmail Email Fetch ===\n");
 
   const startDate = startDateStr ? new Date(startDateStr) : new Date("2024-01-01");
   const endDate = endDateStr ? new Date(endDateStr) : new Date();
+
+  if (forceHistorical) {
+    console.log("Force historical mode: ignoring last sync date\n");
+  }
 
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   fs.mkdirSync(METADATA_DIR, { recursive: true });
@@ -150,7 +157,8 @@ async function fetchEmails(accountKey: string, startDateStr?: string, endDateStr
       console.log(`Connected as: ${profile.email}`);
 
       const lastSync = syncState.getLastSyncDate(account.email);
-      const effectiveStart = lastSync && lastSync > startDate ? lastSync : startDate;
+      // If forceHistorical is true, always use the requested startDate regardless of last sync
+      const effectiveStart = (!forceHistorical && lastSync && lastSync > startDate) ? lastSync : startDate;
 
       if (lastSync) {
         console.log(`Last sync: ${lastSync.toISOString().split("T")[0]}`);
@@ -183,7 +191,18 @@ async function fetchEmails(accountKey: string, startDateStr?: string, endDateStr
 
         for (const attachment of relevantAttachments) {
           try {
-            const data = await gmail.downloadAttachment(message.id, attachment.id);
+            let data: Buffer;
+
+            // Check if this is an inline image with data already present
+            if (attachment.id.startsWith("inline:") && attachment.inlineData) {
+              // Inline image - data is already base64 encoded in inlineData
+              data = Buffer.from(attachment.inlineData, "base64");
+              console.log(`  Inline: ${attachment.filename} (${formatSize(data.length)})`);
+            } else {
+              // Standard attachment - fetch via API
+              data = await gmail.downloadAttachment(message.id, attachment.id);
+            }
+
             const savedPath = saveAttachmentToFolder(data, attachment, emailFolder);
             console.log(`  Saved: ${path.basename(savedPath)}`);
             attachmentCount++;
@@ -539,19 +558,35 @@ function getMimeType(filename: string): string {
 
 function isRelevantMimeType(mimeType: string): boolean {
   const relevant = [
+    // Documents
     "application/pdf",
     "application/msword",
     "application/vnd.openxmlformats-officedocument",
     "application/vnd.ms-excel",
+    "application/vnd.ms-powerpoint",
+    // Images
     "image/png",
     "image/jpeg",
     "image/tiff",
+    "image/gif",
+    "image/webp",
+    "image/bmp",
+    // Text files
+    "text/plain",
+    "text/csv",
+    "text/html",
+    // Archives
+    "application/zip",
+    "application/x-zip-compressed",
+    // Other common formats
+    "application/json",
+    "application/xml",
   ];
   return relevant.some((r) => mimeType.toLowerCase().includes(r.toLowerCase()));
 }
 
+// Patterns for definite junk (logos, spacers, tracking pixels)
 const JUNK_PATTERNS = [
-  /^image\d{3}\.(png|jpg|jpeg|gif)$/i,
   /^icon(_\d+)?\.(png|jpg|gif)$/i,
   /^atl-generated-/i,
   /^prestashop-logo/i,
@@ -559,16 +594,35 @@ const JUNK_PATTERNS = [
   /^logo\.(png|jpg|gif)$/i,
   /^spacer\.(gif|png)$/i,
   /^pixel\.(gif|png)$/i,
+  /^tracking\.(gif|png)$/i,
+  /^signature[_-]?/i,
+];
+
+// Patterns that are junk ONLY if small (< 10KB) - these could be real content if larger
+const SIZE_DEPENDENT_PATTERNS = [
+  /^image\d{3}\.(png|jpg|jpeg|gif)$/i,  // image001.png etc - often signatures but could be content
+  /^embedded_/i,                          // embedded images
 ];
 
 function isJunkAttachment(filename: string, size: number): boolean {
+  // Tiny images are almost always tracking pixels or spacers
   if (size < 500 && /\.(png|gif|jpg|jpeg)$/i.test(filename)) return true;
 
+  // Definite junk patterns (regardless of size up to 50KB)
   if (size < 50 * 1024) {
     for (const pattern of JUNK_PATTERNS) {
       if (pattern.test(filename)) return true;
     }
   }
+
+  // Size-dependent patterns: only junk if small (< 10KB)
+  // Larger files with these names are likely actual content
+  if (size < 10 * 1024) {
+    for (const pattern of SIZE_DEPENDENT_PATTERNS) {
+      if (pattern.test(filename)) return true;
+    }
+  }
+
   return false;
 }
 
@@ -620,7 +674,7 @@ ${message.body || "(No text content)"}
   }, null, 2));
 }
 
-function saveAttachmentToFolder(data: Buffer, attachment: any, folderPath: string): string {
+function saveAttachmentToFolder(data: Buffer, attachment: AttachmentInfo, folderPath: string): string {
   const safeFilename = attachment.filename
     .replace(/[<>:"/\\|?*]/g, "_")
     .replace(/\s+/g, "_");
@@ -655,6 +709,12 @@ function getUniquePath(filepath: string): string {
   } while (fs.existsSync(newPath));
 
   return newPath;
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 main().catch(console.error);

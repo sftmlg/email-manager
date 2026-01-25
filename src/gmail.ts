@@ -123,6 +123,7 @@ export class GmailClient {
 
     const extractFromParts = (parts: gmail_v1.Schema$MessagePart[]) => {
       for (const part of parts) {
+        // Case 1: Standard attachment with attachmentId (fetched via API)
         if (part.filename && part.body?.attachmentId) {
           attachments.push({
             id: part.body.attachmentId,
@@ -131,6 +132,40 @@ export class GmailClient {
             size: part.body.size || 0,
           });
         }
+        // Case 2: Inline/embedded images with data directly in body (CID images)
+        // These have filename but data is in body.data, not via attachmentId
+        else if (part.filename && part.body?.data && part.mimeType?.startsWith("image/")) {
+          // Generate a unique ID for inline images using Content-ID or hash
+          const contentIdHeader = part.headers?.find(h => h.name?.toLowerCase() === "content-id");
+          const contentId = contentIdHeader?.value?.replace(/[<>]/g, "") || `inline_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+          attachments.push({
+            id: `inline:${contentId}`,  // Mark as inline with special prefix
+            filename: part.filename,
+            mimeType: part.mimeType || "image/png",
+            size: part.body.size || part.body.data.length,
+            inlineData: part.body.data,  // Store the base64 data directly
+          });
+        }
+        // Case 3: Image parts without filename but with CID reference (embedded)
+        else if (part.mimeType?.startsWith("image/") && part.body?.data && !part.filename) {
+          const contentIdHeader = part.headers?.find(h => h.name?.toLowerCase() === "content-id");
+          if (contentIdHeader?.value) {
+            const contentId = contentIdHeader.value.replace(/[<>]/g, "");
+            // Generate filename from content-id or mime type
+            const ext = part.mimeType.split("/")[1] || "png";
+            const filename = `embedded_${contentId}.${ext}`;
+
+            attachments.push({
+              id: `inline:${contentId}`,
+              filename: filename,
+              mimeType: part.mimeType,
+              size: part.body.size || part.body.data.length,
+              inlineData: part.body.data,
+            });
+          }
+        }
+
         if (part.parts) {
           extractFromParts(part.parts);
         }

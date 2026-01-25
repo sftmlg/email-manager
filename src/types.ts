@@ -40,6 +40,7 @@ export interface AttachmentInfo {
   filename: string;
   mimeType: string;
   size: number;
+  inlineData?: string;  // Base64-encoded data for inline/embedded images
 }
 
 export interface FetchOptions {
