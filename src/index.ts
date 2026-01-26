@@ -29,12 +29,17 @@ import type { AccountConfig, SendEmailOptions, AttachmentFile, AttachmentInfo } 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configuration
-const ROOT_DIR = path.resolve(__dirname, "../../..");
-const CREDENTIALS_PATH = path.join(ROOT_DIR, "credentials.json");
-const METADATA_DIR = path.join(ROOT_DIR, "_metadata");
+// Configuration - Centralized tokens location (sibling folder in parent repo)
+const TOKENS_DIR = path.resolve(__dirname, "../../tokens/email-manager");
+const CREDENTIALS_PATH = path.resolve(__dirname, "../../tokens/credentials.json");
+// Local config (stays in tool repo)
+const METADATA_DIR = path.resolve(__dirname, "../_metadata");
 const SYNC_STATE_PATH = path.join(METADATA_DIR, "email-sync-state.json");
-const OUTPUT_DIR = path.join(ROOT_DIR, "email-index");
+const OUTPUT_DIR = path.resolve(__dirname, "../email-index");
+
+// Ensure directories exist
+if (!fs.existsSync(TOKENS_DIR)) fs.mkdirSync(TOKENS_DIR, { recursive: true });
+if (!fs.existsSync(METADATA_DIR)) fs.mkdirSync(METADATA_DIR, { recursive: true });
 
 // Account configurations - email will be populated after auth
 const ACCOUNTS: Record<string, AccountConfig> = {
@@ -42,13 +47,13 @@ const ACCOUNTS: Record<string, AccountConfig> = {
     name: "Personal",
     email: "",
     credentialsPath: CREDENTIALS_PATH,
-    tokenPath: path.join(ROOT_DIR, "token-personal.json"),
+    tokenPath: path.join(TOKENS_DIR, "personal.json"),
   },
   business: {
     name: "Business",
     email: "",
     credentialsPath: CREDENTIALS_PATH,
-    tokenPath: path.join(ROOT_DIR, "token-business.json"),
+    tokenPath: path.join(TOKENS_DIR, "business.json"),
   },
 };
 
@@ -58,19 +63,9 @@ async function main() {
 
   // Ensure credentials exist
   if (!fs.existsSync(CREDENTIALS_PATH)) {
-    const files = fs.readdirSync(ROOT_DIR);
-    const clientSecretFile = files.find(f => f.startsWith("client_secret_"));
-    if (clientSecretFile) {
-      fs.copyFileSync(
-        path.join(ROOT_DIR, clientSecretFile),
-        CREDENTIALS_PATH
-      );
-      console.log(`Copied ${clientSecretFile} to credentials.json`);
-    } else {
-      console.error("Error: credentials.json not found");
-      console.error("Please download from Google Cloud Console and place in repository root");
-      process.exit(1);
-    }
+    console.error("Error: credentials.json not found at", CREDENTIALS_PATH);
+    console.error("Please download from Google Cloud Console and place in tokens/credentials.json");
+    process.exit(1);
   }
 
   switch (command) {
