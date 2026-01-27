@@ -4,10 +4,8 @@ node_modules/
 # Build output
 dist/
 
-# OAuth tokens and credentials
-credentials.json
+# OAuth credentials (tokens tracked in git for multi-device sync)
 client_secret_*.json
-token-*.json
 
 # Email data
 email-index/
@@ -25,3 +23,4 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+credentials.json
