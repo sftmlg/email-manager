@@ -2,6 +2,12 @@
 
 Comprehensive Gmail management CLI tool for fetching, sending, and managing email drafts with OAuth authentication.
 
+## Keywords
+
+`email`, `gmail`, `draft`, `send`, `fetch`, `inbox`, `mail`
+
+These keywords trigger automatic routing to this tool when mentioned in user requests.
+
 ## Features
 
 - OAuth2 authentication with Google Gmail API
@@ -43,14 +49,21 @@ Opens browser for OAuth flow. Tokens saved to `token-personal.json` and `token-b
 ### Fetch Emails
 
 ```bash
-pnpm fetch [account] [start-date] [end-date]
+pnpm fetch [account] [start-date] [end-date] [options]
 ```
+
+Options:
+- `--query <text>` - Gmail search query (e.g., "from:example.com", "subject:invoice")
+- `--max <number>` - Maximum results to fetch (default: 100)
+- `--force` - Force historical fetch, ignoring last sync date
 
 Examples:
 ```bash
-pnpm fetch personal                          # All personal emails (Jan 2024 - now)
+pnpm fetch personal                          # All personal emails since last sync
 pnpm fetch business 2024-06-01 2024-12-31   # Business emails (date range)
 pnpm fetch all                               # All accounts
+pnpm fetch business --query "from:client.com" --max 50   # Search with filters
+pnpm fetch business --query "subject:invoice" --force    # Search all history
 ```
 
 ### Send Email
