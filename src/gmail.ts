@@ -309,8 +309,9 @@ export class GmailClient {
     const boundary = "boundary_" + Date.now();
     const nl = "\r\n";
 
+    const fromAddress = options.from || this.userEmail;
     let message = [
-      `From: ${this.userEmail}`,
+      `From: ${fromAddress}`,
       `To: ${options.to}`,
     ];
 

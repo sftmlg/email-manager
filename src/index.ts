@@ -287,6 +287,9 @@ async function sendEmail(args: string[]) {
     account.email = profile.email;
 
     console.log(`Sending from: ${profile.email}`);
+    if (options.from) {
+      console.log(`From (alias): ${options.from}`);
+    }
     console.log(`To: ${options.to}`);
     console.log(`Subject: ${options.subject}`);
     if (options.attachments && options.attachments.length > 0) {
@@ -334,6 +337,9 @@ async function createDraft(args: string[]) {
     account.email = profile.email;
 
     console.log(`Creating draft for: ${profile.email}`);
+    if (options.from) {
+      console.log(`From (alias): ${options.from}`);
+    }
     console.log(`To: ${options.to}`);
     console.log(`Subject: ${options.subject}`);
     if (options.attachments && options.attachments.length > 0) {
@@ -579,6 +585,10 @@ function parseEmailOptions(args: string[]): SendEmailOptions {
         break;
       case "--bcc":
         options.bcc = nextArg;
+        i++;
+        break;
+      case "--from":
+        options.from = nextArg;
         i++;
         break;
       case "--attach":
