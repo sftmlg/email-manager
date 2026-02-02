@@ -136,6 +136,16 @@ async function fetchEmails(opts: FetchCommandOptions) {
   const startDate = startDateStr ? new Date(startDateStr) : new Date("2024-01-01");
   const endDate = endDateStr ? new Date(endDateStr) : new Date();
 
+  // Validate dates
+  if (isNaN(startDate.getTime())) {
+    console.error(`Error: Invalid start date "${startDateStr}"`);
+    process.exit(1);
+  }
+  if (isNaN(endDate.getTime())) {
+    console.error(`Error: Invalid end date "${endDateStr}"`);
+    process.exit(1);
+  }
+
   if (forceHistorical) {
     console.log("Force historical mode: ignoring last sync date\n");
   }
