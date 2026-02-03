@@ -1,6 +1,30 @@
 # Email Manager
 
-Comprehensive Gmail management CLI tool for fetching, sending, and managing email drafts with OAuth authentication.
+Gmail management CLI tool for fetching, sending, and managing email drafts with OAuth authentication.
+
+## Quick Start
+
+**Invocation Pattern**: `pnpm start <command> [args]`
+
+### Common Commands
+```bash
+pnpm start auth personal                                       # Authenticate
+pnpm start fetch business --query "from:client.com" --max 50  # Fetch emails
+pnpm start send personal --to "john@example.com" --subject "Test" --body "Hello"
+pnpm start draft business --to "x@y.com" --subject "Proposal" --body "Draft text"
+pnpm start drafts business                                     # List drafts
+pnpm start status                                              # Show sync state
+```
+
+**Need help?** `pnpm start help`
+
+---
+
+## Keywords
+
+`email`, `gmail`, `draft`, `send`, `fetch`, `inbox`, `mail`
+
+These keywords trigger automatic routing to this tool when mentioned in user requests.
 
 ## Features
 
@@ -30,12 +54,12 @@ pnpm auth personal
 pnpm auth business
 ```
 
-## Commands
+## Commands Reference
 
 ### Authentication
 
 ```bash
-pnpm auth [personal|business|all]
+pnpm start auth [personal|business|all]
 ```
 
 Opens browser for OAuth flow. Tokens saved to `token-personal.json` and `token-business.json`.
@@ -43,23 +67,30 @@ Opens browser for OAuth flow. Tokens saved to `token-personal.json` and `token-b
 ### Fetch Emails
 
 ```bash
-pnpm fetch [account] [start-date] [end-date]
+pnpm start fetch [account] [start-date] [end-date] [options]
 ```
 
-Examples:
+**Options:**
+- `--query <text>` - Gmail search query (e.g., "from:example.com", "subject:invoice")
+- `--max <number>` - Maximum results to fetch (default: 100)
+- `--force` - Force historical fetch, ignoring last sync date
+
+**Examples:**
 ```bash
-pnpm fetch personal                          # All personal emails (Jan 2024 - now)
-pnpm fetch business 2024-06-01 2024-12-31   # Business emails (date range)
-pnpm fetch all                               # All accounts
+pnpm start fetch personal                              # All personal emails since last sync
+pnpm start fetch business 2024-06-01 2024-12-31       # Business emails (date range)
+pnpm start fetch all                                   # All accounts
+pnpm start fetch business --query "from:client.com" --max 50   # Search with filters
+pnpm start fetch business --query "subject:invoice" --force    # Search all history
 ```
 
 ### Send Email
 
 ```bash
-pnpm send <account> --to <email> --subject <text> --body <text> [options]
+pnpm start send <account> --to <email> --subject <text> --body <text> [options]
 ```
 
-Options:
+**Options:**
 - `--to <email>` - Recipient email (required)
 - `--subject <text>` - Email subject (required)
 - `--body <text>` - Email body (required)
@@ -67,40 +98,48 @@ Options:
 - `--bcc <email>` - BCC recipients (optional)
 - `--attach <file>` - Attach file, can be used multiple times (optional)
 
-Examples:
+**Examples:**
 ```bash
-pnpm send personal --to "john@example.com" --subject "Hello" --body "Test message"
+pnpm start send personal --to "john@example.com" --subject "Hello" --body "Test message"
 
-pnpm send business --to "client@example.com" --subject "Report" --body "See attached" --attach report.pdf
+pnpm start send business --to "client@example.com" --subject "Report" --body "See attached" --attach report.pdf
 
-pnpm send personal --to "team@example.com" --subject "Update" --body "Meeting notes" --cc "manager@example.com" --attach notes.pdf --attach agenda.docx
+pnpm start send personal --to "team@example.com" --subject "Update" --body "Meeting notes" --cc "manager@example.com" --attach notes.pdf --attach agenda.docx
 ```
 
 ### Create Draft
 
 ```bash
-pnpm draft <account> --to <email> --subject <text> --body <text> [options]
+pnpm start draft <account> --to <email> --subject <text> --body <text> [options]
 ```
 
 Same options as `send` command. Creates a draft instead of sending immediately.
 
-Example:
+**Example:**
 ```bash
-pnpm draft business --to "prospect@example.com" --subject "Proposal" --body "Draft proposal text" --attach proposal.pdf
+pnpm start draft business --to "prospect@example.com" --subject "Proposal" --body "Draft proposal text" --attach proposal.pdf
 ```
 
 ### List Drafts
 
 ```bash
-pnpm drafts [personal|business|all]
+pnpm start drafts [personal|business|all]
 ```
 
 Shows all drafts with ID, subject, recipient, and date.
 
+### Delete Draft
+
+```bash
+pnpm start delete-draft <account> <draft-id>
+```
+
+Deletes a draft by ID.
+
 ### Status
 
 ```bash
-pnpm status
+pnpm start status
 ```
 
 Shows sync status for all accounts (messages fetched, attachments saved, emails sent, drafts created).

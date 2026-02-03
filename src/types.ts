@@ -58,6 +58,7 @@ export interface SendEmailOptions {
   from?: string;
   cc?: string;
   bcc?: string;
+  from?: string;  // Override From address (for aliases)
   attachments?: AttachmentFile[];
 }
 

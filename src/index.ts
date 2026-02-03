@@ -25,6 +25,16 @@ import { GmailClient } from "./gmail.js";
 import { SyncStateManager } from "./sync-state.js";
 import type { AccountConfig, SendEmailOptions, AttachmentFile, AttachmentInfo } from "./types.js";
 
+// Fetch command options (supports both positional args and flags)
+interface FetchCommandOptions {
+  account: string;
+  startDate?: string;
+  endDate?: string;
+  query?: string;
+  maxResults?: number;
+  forceHistorical: boolean;
+}
+
 // ESM equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,10 +83,8 @@ async function main() {
       await authenticate(args[1] || "all");
       break;
     case "fetch":
-      const forceIndex = args.indexOf("--force");
-      const forceHistorical = forceIndex !== -1;
-      const fetchArgs = forceHistorical ? args.filter((_, i) => i !== forceIndex) : args;
-      await fetchEmails(fetchArgs[1] || "all", fetchArgs[2], fetchArgs[3], fetchArgs[4], forceHistorical);
+      const fetchOpts = parseFetchOptions(args.slice(1));
+      await fetchEmails(fetchOpts);
       break;
     case "send":
       await sendEmail(args.slice(1));
@@ -120,14 +128,32 @@ async function authenticate(accountKey: string) {
   }
 }
 
-async function fetchEmails(accountKey: string, startDateStr?: string, endDateStr?: string, query?: string, forceHistorical: boolean = false) {
+async function fetchEmails(opts: FetchCommandOptions) {
   console.log("=== Gmail Email Fetch ===\n");
+
+  const { account: accountKey, startDate: startDateStr, endDate: endDateStr, query, maxResults, forceHistorical } = opts;
 
   const startDate = startDateStr ? new Date(startDateStr) : new Date("2024-01-01");
   const endDate = endDateStr ? new Date(endDateStr) : new Date();
 
+  // Validate dates
+  if (isNaN(startDate.getTime())) {
+    console.error(`Error: Invalid start date "${startDateStr}"`);
+    process.exit(1);
+  }
+  if (isNaN(endDate.getTime())) {
+    console.error(`Error: Invalid end date "${endDateStr}"`);
+    process.exit(1);
+  }
+
   if (forceHistorical) {
     console.log("Force historical mode: ignoring last sync date\n");
+  }
+  if (query) {
+    console.log(`Search query: ${query}\n`);
+  }
+  if (maxResults) {
+    console.log(`Max results: ${maxResults}\n`);
   }
 
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -165,6 +191,7 @@ async function fetchEmails(accountKey: string, startDateStr?: string, endDateStr
         startDate: effectiveStart,
         endDate: endDate,
         query: query,
+        maxResults: maxResults,
       });
 
       console.log(`\nFound ${messages.length} messages`);
@@ -270,6 +297,9 @@ async function sendEmail(args: string[]) {
     account.email = profile.email;
 
     console.log(`Sending from: ${profile.email}`);
+    if (options.from) {
+      console.log(`From (alias): ${options.from}`);
+    }
     console.log(`To: ${options.to}`);
     console.log(`Subject: ${options.subject}`);
     if (options.attachments && options.attachments.length > 0) {
@@ -317,6 +347,9 @@ async function createDraft(args: string[]) {
     account.email = profile.email;
 
     console.log(`Creating draft for: ${profile.email}`);
+    if (options.from) {
+      console.log(`From (alias): ${options.from}`);
+    }
     console.log(`To: ${options.to}`);
     console.log(`Subject: ${options.subject}`);
     if (options.attachments && options.attachments.length > 0) {
@@ -419,7 +452,7 @@ This tool handles OAuth authentication, email fetching, sending, and draft manag
 
 Usage:
   pnpm auth [personal|business|all]
-  pnpm fetch [personal|business|all] [start-date] [end-date]
+  pnpm fetch [personal|business|all] [start-date] [end-date] [options]
   pnpm send <account> --to <email> --subject <text> --body <text> [options]
   pnpm draft <account> --to <email> --subject <text> --body <text> [options]
   pnpm drafts [personal|business|all]
@@ -427,13 +460,18 @@ Usage:
 
 Commands:
   auth <account>              Authenticate with Gmail (opens browser)
-  fetch <account> [dates]     Fetch emails and save attachments
+  fetch <account> [options]   Fetch emails and save attachments
   send <account> [options]    Send an email
   draft <account> [options]   Create a draft email
   drafts [account]            List all drafts
   delete-draft <account> <id> Delete a draft by ID
   status                      Show sync status
   help                        Show this help
+
+Fetch Options:
+  --query <text>              Gmail search query (e.g., "from:example.com")
+  --max <number>              Maximum results to fetch (default: 100)
+  --force                     Force historical fetch (ignore last sync date)
 
 Send/Draft Options:
   --to <email>                Recipient email (required)
@@ -452,6 +490,8 @@ Arguments:
 Examples:
   pnpm auth personal
   pnpm fetch business
+  pnpm fetch business --query "from:example.com" --max 50
+  pnpm fetch business 2026-01-01 2026-01-31 --force
   pnpm send personal --to "john@example.com" --subject "Hello" --body "Test message"
   pnpm send personal --to "john@example.com" --subject "Report" --body "See attached" --attach report.pdf
   pnpm draft business --to "client@example.com" --subject "Proposal" --body "Draft proposal"
@@ -476,6 +516,52 @@ function getAccounts(key: string): AccountConfig[] {
     process.exit(1);
   }
   return [account];
+}
+
+/**
+ * Parse fetch command options - supports both positional args and named flags
+ *
+ * Positional (legacy): fetch <account> [start-date] [end-date] [query]
+ * Named flags: fetch <account> --query <text> --max <number> --force
+ * Mixed: fetch business 2026-01-01 --query "from:example.com" --max 50
+ */
+function parseFetchOptions(args: string[]): FetchCommandOptions {
+  const opts: FetchCommandOptions = {
+    account: "all",
+    forceHistorical: false,
+  };
+
+  const positionalArgs: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const nextArg = args[i + 1];
+
+    if (arg === "--query") {
+      opts.query = nextArg;
+      i++;
+    } else if (arg === "--max") {
+      opts.maxResults = parseInt(nextArg, 10);
+      i++;
+    } else if (arg === "--force") {
+      opts.forceHistorical = true;
+    } else if (arg.startsWith("--")) {
+      // Unknown flag - provide helpful error
+      console.error(`Unknown flag: ${arg}`);
+      console.error("Available flags: --query <text>, --max <number>, --force");
+      process.exit(1);
+    } else {
+      positionalArgs.push(arg);
+    }
+  }
+
+  // Map positional args: [account] [start-date] [end-date] [query]
+  if (positionalArgs[0]) opts.account = positionalArgs[0];
+  if (positionalArgs[1]) opts.startDate = positionalArgs[1];
+  if (positionalArgs[2]) opts.endDate = positionalArgs[2];
+  if (positionalArgs[3] && !opts.query) opts.query = positionalArgs[3];
+
+  return opts;
 }
 
 function parseEmailOptions(args: string[]): SendEmailOptions {
