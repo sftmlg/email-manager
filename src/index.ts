@@ -439,6 +439,7 @@ Send/Draft Options:
   --to <email>                Recipient email (required)
   --subject <text>            Email subject (required)
   --body <text>               Email body (required)
+  --from <email>              Sender email alias (optional, must be configured in Gmail)
   --cc <email>                CC recipients (optional)
   --bcc <email>               BCC recipients (optional)
   --attach <file>             Attach file (can be used multiple times)
@@ -509,6 +510,10 @@ function parseEmailOptions(args: string[]): SendEmailOptions {
         break;
       case "--bcc":
         options.bcc = nextArg;
+        i++;
+        break;
+      case "--from":
+        options.from = nextArg;
         i++;
         break;
       case "--attach":
