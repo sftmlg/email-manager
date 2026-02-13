@@ -97,6 +97,7 @@ async function authenticateInteractively(
 
     console.log(`\nAuthenticating ${account.name} (${account.email})...`);
     console.log(`Opening browser for authorization...\n`);
+    console.log(`If the browser doesn't open, visit this URL manually:\n${authUrl}\n`);
 
     // Create temporary server to receive callback
     const server = http.createServer(async (req, res) => {

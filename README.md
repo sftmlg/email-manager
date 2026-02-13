@@ -22,7 +22,7 @@ pnpm start status                                              # Show sync state
 
 ## Keywords
 
-`email`, `gmail`, `draft`, `send`, `fetch`, `inbox`, `mail`
+`email`, `gmail`, `draft`, `send`, `fetch`, `inbox`, `mail`, `unsubscribe`, `cleanup`, `newsletter`
 
 These keywords trigger automatic routing to this tool when mentioned in user requests.
 
@@ -143,6 +143,54 @@ pnpm start status
 ```
 
 Shows sync status for all accounts (messages fetched, attachments saved, emails sent, drafts created).
+
+## Inbox Cleanup / Unsubscribe
+
+The email-manager supports Gmail API-based inbox cleanup. This is an agent-driven workflow using the Gmail API directly (not browser automation).
+
+### How It Works
+
+1. **Search** for emails from unwanted senders using `users.messages.list`
+2. **Extract** `List-Unsubscribe` and `List-Unsubscribe-Post` headers from email metadata
+3. **Unsubscribe** via RFC 8058 one-click POST (preferred) or GET request to unsubscribe URL
+4. **Trash** emails using `users.messages.trash()` per message
+
+### Unsubscribe Methods (priority order)
+
+| Method | When | How |
+|--------|------|-----|
+| One-Click POST (RFC 8058) | `List-Unsubscribe-Post` header exists | POST `List-Unsubscribe=One-Click` to the URL |
+| GET unsubscribe | HTTP URL in `List-Unsubscribe` header | GET request to the URL |
+| No automated option | Only `mailto:` or no header | Manual unsubscribe needed |
+
+### Trashing Emails
+
+Use `users.messages.trash()` per message. Do NOT use `batchModify` with `addLabelIds: ['TRASH']` — it's unreliable.
+
+### Workflow Pattern
+
+```
+1. Authenticate using existing personal/business token
+2. Search: gmail.users.messages.list({ q: 'from:sender.com' })
+3. Get headers: gmail.users.messages.get({ format: 'metadata', metadataHeaders: ['List-Unsubscribe', 'List-Unsubscribe-Post'] })
+4. Unsubscribe: HTTP POST/GET to extracted URL
+5. Trash: gmail.users.messages.trash({ id: messageId }) for each email
+```
+
+### Account Mapping
+
+| Account | Email | Token |
+|---------|-------|-------|
+| `personal` | `davmol12@gmail.com` | `tokens/email-manager/personal.json` |
+| `business` | `mail@software-moling.com` | `tokens/email-manager/business.json` |
+
+## Best Practices
+
+### Attachments
+When drafting or sending emails with attachments, keep the body concise. Do NOT duplicate information that's already in the attachment — let the attachment speak for itself.
+
+### Updating Drafts
+When updating an existing draft, always delete the old draft first using `delete-draft`, then create a new one. Never leave orphan drafts in the inbox.
 
 ## OAuth Scopes
 
