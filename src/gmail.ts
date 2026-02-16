@@ -107,6 +107,8 @@ export class GmailClient {
         labels: message.labelIds || [],
         attachments,
         body: this.extractBody(message.payload),
+        messageIdHeader: getHeader("Message-ID") || getHeader("Message-Id"),
+        referencesHeader: getHeader("References"),
       };
     } catch (error) {
       console.error(`Error fetching message ${messageId}:`, error);
@@ -240,13 +242,41 @@ export class GmailClient {
   async createDraft(options: SendEmailOptions): Promise<string> {
     const message = this.createMimeMessage(options);
 
+    const requestBody: any = {
+      message: {
+        raw: message,
+      },
+    };
+
+    if (options.threadId) {
+      requestBody.message.threadId = options.threadId;
+    }
+
     const response = await this.gmail.users.drafts.create({
       userId: "me",
-      requestBody: {
-        message: {
-          raw: message,
-        },
+      requestBody,
+    });
+
+    return response.data.id!;
+  }
+
+  async updateDraft(draftId: string, options: SendEmailOptions): Promise<string> {
+    const message = this.createMimeMessage(options);
+
+    const requestBody: any = {
+      message: {
+        raw: message,
       },
+    };
+
+    if (options.threadId) {
+      requestBody.message.threadId = options.threadId;
+    }
+
+    const response = await this.gmail.users.drafts.update({
+      userId: "me",
+      id: draftId,
+      requestBody,
     });
 
     return response.data.id!;
@@ -324,6 +354,14 @@ export class GmailClient {
     }
 
     message.push(`Subject: ${this.encodeSubject(options.subject)}`);
+
+    if (options.inReplyTo) {
+      message.push(`In-Reply-To: ${options.inReplyTo}`);
+    }
+    if (options.references) {
+      message.push(`References: ${options.references}`);
+    }
+
     message.push(`MIME-Version: 1.0`);
 
     if (options.attachments && options.attachments.length > 0) {

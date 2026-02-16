@@ -167,6 +167,14 @@ The email-manager supports Gmail API-based inbox cleanup. This is an agent-drive
 
 Use `users.messages.trash()` per message. Do NOT use `batchModify` with `addLabelIds: ['TRASH']` — it's unreliable.
 
+### Safety Rules (CRITICAL)
+
+1. **NEVER archive or trash the entire inbox.** Only process emails matching explicit sender/pattern filters.
+2. **Only process UNREAD emails** unless user explicitly asks for broader scope.
+3. **Conservative filtering**: When uncertain, KEEP the email. Only archive emails from clearly identified newsletter/marketing senders.
+4. **No bulk inbox operations**: Never use `removeLabelIds: ['INBOX']` on ALL emails. Always scope to specific senders or patterns.
+5. **Confirm before scale**: If operation would affect >50 emails, report the count and list of senders first before executing.
+
 ### Workflow Pattern
 
 ```
@@ -191,6 +199,62 @@ When drafting or sending emails with attachments, keep the body concise. Do NOT 
 
 ### Updating Drafts
 When updating an existing draft, always delete the old draft first using `delete-draft`, then create a new one. Never leave orphan drafts in the inbox.
+
+
+## Email Threading (CRITICAL)
+
+### When Replying to an Email
+
+**ALWAYS use `--thread-id` when replying to an existing email.** The Gmail API does NOT auto-thread based on "Re: " in the subject line.
+
+**Correct Workflow:**
+```bash
+# 1. Fetch the original email to get the thread ID
+pnpm start fetch business --query "from:sender@example.com" --max 1
+
+# 2. Check the fetched email metadata for threadId
+# Located in: email-index/business/YYYY/MM/YYMMDD_subject_threadid/_email.meta.json
+
+# 3. Draft with --thread-id
+pnpm start draft business \
+  --to "sender@example.com" \
+  --subject "Re: Original Subject" \
+  --body "Reply text" \
+  --thread-id "19c568d01576d949"
+```
+
+**Why This Matters:**
+- Without `--thread-id`, Gmail creates a NEW conversation thread
+- "Re: " in subject does NOT trigger auto-threading in Gmail API
+- Recipients see replies as separate emails instead of a conversation
+- Email clients lose context and conversation history
+
+### RFC 2822 Threading Headers
+
+For maximum compatibility across email clients, also use `--in-reply-to` and `--references`:
+
+```bash
+pnpm start draft business \
+  --to "sender@example.com" \
+  --subject "Re: Original Subject" \
+  --body "Reply text" \
+  --thread-id "19c568d01576d949" \
+  --in-reply-to "<original-message-id@gmail.com>" \
+  --references "<msg1@gmail.com> <msg2@gmail.com> <original-message-id@gmail.com>"
+```
+
+**Where to find these headers:**
+- `Message-ID`: In `_email.meta.json` → `messageId`
+- `References`: In `_email.meta.json` → `referencesHeader`
+
+### Quick Reference
+
+| Scenario | Required Parameters |
+|----------|-------------------|
+| New conversation | `--to`, `--subject`, `--body` |
+| Reply to email | Add `--thread-id` |
+| Reply with full RFC compliance | Add `--thread-id`, `--in-reply-to`, `--references` |
+| Forward | New thread (no threading params) |
 
 ## OAuth Scopes
 

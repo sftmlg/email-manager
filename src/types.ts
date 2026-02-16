@@ -33,6 +33,8 @@ export interface EmailMessage {
   labels: string[];
   attachments: AttachmentInfo[];
   body?: string;
+  messageIdHeader?: string;   // RFC 2822 Message-ID header
+  referencesHeader?: string;  // RFC 2822 References header
 }
 
 export interface AttachmentInfo {
@@ -58,7 +60,9 @@ export interface SendEmailOptions {
   from?: string;
   cc?: string;
   bcc?: string;
-  from?: string;  // Override From address (for aliases)
+  threadId?: string;      // Gmail thread ID for threaded replies
+  inReplyTo?: string;     // RFC 2822 Message-ID of the message being replied to
+  references?: string;    // RFC 2822 References header chain
   attachments?: AttachmentFile[];
 }
 

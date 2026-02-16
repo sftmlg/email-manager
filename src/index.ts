@@ -95,6 +95,9 @@ async function main() {
     case "drafts":
       await listDrafts(args[1] || "all");
       break;
+    case "update-draft":
+      await updateDraft(args.slice(1));
+      break;
     case "delete-draft":
       await deleteDraft(args[1], args[2]);
       break;
@@ -368,6 +371,68 @@ async function createDraft(args: string[]) {
   }
 }
 
+async function updateDraft(args: string[]) {
+  console.log("=== Update Draft ===\n");
+
+  const accountKey = args[0];
+  if (!accountKey || accountKey === "all") {
+    console.error("Error: Please specify an account (personal or business)");
+    process.exit(1);
+  }
+
+  // Find --draft-id flag
+  let draftId = "";
+  const remainingArgs: string[] = [];
+  for (let i = 1; i < args.length; i++) {
+    if (args[i] === "--draft-id" && args[i + 1]) {
+      draftId = args[i + 1];
+      i++;
+    } else {
+      remainingArgs.push(args[i]);
+    }
+  }
+
+  if (!draftId) {
+    console.error("Error: --draft-id is required");
+    console.error("Usage: update-draft <account> --draft-id <id> --to <email> --subject <subject> --body <body>");
+    process.exit(1);
+  }
+
+  const options = parseEmailOptions(remainingArgs);
+  if (!options.to || !options.subject || !options.body) {
+    console.error("Error: --to, --subject, and --body are required");
+    process.exit(1);
+  }
+
+  const account = ACCOUNTS[accountKey];
+  if (!account) {
+    console.error(`Unknown account: ${accountKey}`);
+    process.exit(1);
+  }
+
+  try {
+    const auth = await getAuthenticatedClient(account);
+    const gmail = new GmailClient(auth, account.email);
+    const profile = await gmail.getProfile();
+    account.email = profile.email;
+
+    console.log(`Updating draft for: ${profile.email}`);
+    console.log(`Draft ID: ${draftId}`);
+    if (options.from) {
+      console.log(`From (alias): ${options.from}`);
+    }
+    console.log(`To: ${options.to}`);
+    console.log(`Subject: ${options.subject}`);
+
+    const updatedId = await gmail.updateDraft(draftId, options);
+    console.log(`\nDraft updated successfully!`);
+    console.log(`Draft ID: ${updatedId}`);
+  } catch (error) {
+    console.error("Error updating draft:", error);
+    process.exit(1);
+  }
+}
+
 async function deleteDraft(accountKey: string, draftId: string) {
   console.log("=== Delete Draft ===\n");
 
@@ -463,6 +528,7 @@ Commands:
   fetch <account> [options]   Fetch emails and save attachments
   send <account> [options]    Send an email
   draft <account> [options]   Create a draft email
+  update-draft <account> [options] Update an existing draft
   drafts [account]            List all drafts
   delete-draft <account> <id> Delete a draft by ID
   status                      Show sync status
@@ -481,6 +547,10 @@ Send/Draft Options:
   --cc <email>                CC recipients (optional)
   --bcc <email>               BCC recipients (optional)
   --attach <file>             Attach file (can be used multiple times)
+  --thread-id <id>            Gmail thread ID (for threaded replies)
+  --in-reply-to <id>          RFC 2822 Message-ID (for threaded replies)
+  --references <ids>          RFC 2822 References chain (for threaded replies)
+  --draft-id <id>             Draft ID to update (required for update-draft)
 
 Arguments:
   account     personal, business, or all (default: all)
@@ -600,6 +670,18 @@ function parseEmailOptions(args: string[]): SendEmailOptions {
         break;
       case "--from":
         options.from = nextArg;
+        i++;
+        break;
+      case "--thread-id":
+        options.threadId = nextArg;
+        i++;
+        break;
+      case "--in-reply-to":
+        options.inReplyTo = nextArg;
+        i++;
+        break;
+      case "--references":
+        options.references = nextArg;
         i++;
         break;
       case "--attach":
