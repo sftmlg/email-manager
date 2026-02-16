@@ -144,46 +144,58 @@ pnpm start status
 
 Shows sync status for all accounts (messages fetched, attachments saved, emails sent, drafts created).
 
-## Inbox Cleanup / Unsubscribe
+## Inbox Cleanup Skill
 
-The email-manager supports Gmail API-based inbox cleanup. This is an agent-driven workflow using the Gmail API directly (not browser automation).
+Agent-driven Gmail inbox cleanup using the Gmail API directly (not browser automation). Triggered by keywords: `cleanup`, `unsubscribe`, `newsletter`, `inbox cleanup`.
 
-### How It Works
+### Safety Rules (CRITICAL — Read First)
 
-1. **Search** for emails from unwanted senders using `users.messages.list`
-2. **Extract** `List-Unsubscribe` and `List-Unsubscribe-Post` headers from email metadata
-3. **Unsubscribe** via RFC 8058 one-click POST (preferred) or GET request to unsubscribe URL
-4. **Trash** emails using `users.messages.trash()` per message
+1. **NEVER archive or trash the entire inbox.** Only process emails matching explicit sender/pattern filters.
+2. **Only process UNREAD emails** unless user explicitly asks for broader scope.
+3. **Conservative filtering**: When uncertain, KEEP the email.
+4. **No bulk inbox operations**: Never use `removeLabelIds: ['INBOX']` on ALL emails without specific sender scoping.
+5. **Confirm before scale**: If >50 emails affected, report count + sender list before executing.
+6. **Use `messages.trash()` per-message.** Do NOT use `batchModify` with `addLabelIds: ['TRASH']` — it's unreliable.
+7. **Use `messages.modify()` for archiving.** `removeLabelIds: ['INBOX', 'UNREAD']` works reliably for archive operations.
 
-### Unsubscribe Methods (priority order)
+### Step-by-Step Workflow
+
+**Phase 1: Connect & Survey**
+1. Load token from `tokens/email-manager/{personal|business}.json`
+2. Create OAuth2 client and set credentials (auto-refresh if expired)
+3. List UNREAD INBOX emails: `gmail.users.messages.list({ labelIds: ['INBOX', 'UNREAD'], maxResults: 500 })`
+4. For each email, get metadata: `gmail.users.messages.get({ format: 'metadata', metadataHeaders: ['From', 'Subject', 'List-Unsubscribe', 'List-Unsubscribe-Post'] })`
+5. Present categorized summary to user: marketing/newsletter vs. relevant
+
+**Phase 2: Classify**
+Categorize by sender domain into:
+- **Archive**: Marketing newsletters, promotions, expired offers, notification spam
+- **Keep**: Bills, receipts, personal contacts, security alerts, service notifications
+- **Uncertain**: Default to KEEP
+
+**Phase 3: Unsubscribe (optional)**
+For senders user wants to stop receiving:
 
 | Method | When | How |
 |--------|------|-----|
 | One-Click POST (RFC 8058) | `List-Unsubscribe-Post` header exists | POST `List-Unsubscribe=One-Click` to the URL |
 | GET unsubscribe | HTTP URL in `List-Unsubscribe` header | GET request to the URL |
-| No automated option | Only `mailto:` or no header | Manual unsubscribe needed |
+| No automated option | Only `mailto:` or no header | Skip, inform user |
 
-### Trashing Emails
+**Phase 4: Execute**
+- **Archive** (remove from inbox, keep in All Mail): `gmail.users.messages.modify({ removeLabelIds: ['INBOX', 'UNREAD'] })`
+- **Trash** (move to trash, auto-deleted after 30 days): `gmail.users.messages.trash({ id: messageId })`
+- **Batch archive** (for >10 emails from same pattern): `gmail.users.messages.batchModify({ ids: [...], removeLabelIds: ['INBOX', 'UNREAD'] })`
 
-Use `users.messages.trash()` per message. Do NOT use `batchModify` with `addLabelIds: ['TRASH']` — it's unreliable.
+**Phase 5: Verify**
+Re-list UNREAD INBOX and show remaining count + summary to confirm only relevant emails remain.
 
-### Safety Rules (CRITICAL)
+### Implementation Notes
 
-1. **NEVER archive or trash the entire inbox.** Only process emails matching explicit sender/pattern filters.
-2. **Only process UNREAD emails** unless user explicitly asks for broader scope.
-3. **Conservative filtering**: When uncertain, KEEP the email. Only archive emails from clearly identified newsletter/marketing senders.
-4. **No bulk inbox operations**: Never use `removeLabelIds: ['INBOX']` on ALL emails. Always scope to specific senders or patterns.
-5. **Confirm before scale**: If operation would affect >50 emails, report the count and list of senders first before executing.
-
-### Workflow Pattern
-
-```
-1. Authenticate using existing personal/business token
-2. Search: gmail.users.messages.list({ q: 'from:sender.com' })
-3. Get headers: gmail.users.messages.get({ format: 'metadata', metadataHeaders: ['List-Unsubscribe', 'List-Unsubscribe-Post'] })
-4. Unsubscribe: HTTP POST/GET to extracted URL
-5. Trash: gmail.users.messages.trash({ id: messageId }) for each email
-```
+- Write a temporary `.mjs` script in the email-manager directory (has `googleapis` in node_modules)
+- Use ESM imports (`import { google } from 'googleapis'`)
+- Run with `node script.mjs` from the email-manager directory
+- Delete the script after execution
 
 ### Account Mapping
 
