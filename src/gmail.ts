@@ -3,6 +3,7 @@ import { google, gmail_v1 } from "googleapis";
 type OAuth2Client = InstanceType<typeof google.auth.OAuth2>;
 import * as fs from "fs";
 import * as path from "path";
+import { simpleParser } from "mailparser";
 import type {
   EmailMessage,
   AttachmentInfo,
@@ -420,6 +421,86 @@ export class GmailClient {
       return msg.data.historyId || undefined;
     }
     return undefined;
+  }
+
+  /**
+   * Parse an .eml file (RFC 822 message) and extract readable content
+   * @param emlBuffer Buffer containing the .eml file data
+   * @returns Formatted text summary of the email
+   */
+  async parseEmlFile(emlBuffer: Buffer): Promise<string> {
+    try {
+      const parsed = await simpleParser(emlBuffer);
+
+      const lines: string[] = [];
+      lines.push("=== Forwarded Email ===");
+      lines.push("");
+
+      if (parsed.from) {
+        const fromObj = Array.isArray(parsed.from) ? parsed.from[0] : parsed.from;
+        const fromAddress = fromObj?.value?.[0]?.address || fromObj?.text || "";
+        const fromName = fromObj?.value?.[0]?.name || "";
+        lines.push(`From: ${fromName ? `${fromName} <${fromAddress}>` : fromAddress}`);
+      }
+
+      if (parsed.to) {
+        const toObj = Array.isArray(parsed.to) ? parsed.to[0] : parsed.to;
+        const toAddresses = Array.isArray(toObj?.value)
+          ? toObj.value.map((addr: any) => addr.address || addr.text).join(", ")
+          : toObj?.text || "";
+        lines.push(`To: ${toAddresses}`);
+      }
+
+      if (parsed.cc) {
+        const ccObj = Array.isArray(parsed.cc) ? parsed.cc[0] : parsed.cc;
+        const ccAddresses = Array.isArray(ccObj?.value)
+          ? ccObj.value.map((addr: any) => addr.address || addr.text).join(", ")
+          : ccObj?.text || "";
+        lines.push(`Cc: ${ccAddresses}`);
+      }
+
+      if (parsed.date) {
+        lines.push(`Date: ${parsed.date.toISOString()}`);
+      }
+
+      if (parsed.subject) {
+        lines.push(`Subject: ${parsed.subject}`);
+      }
+
+      lines.push("");
+      lines.push("--- Message Body ---");
+      lines.push("");
+
+      // Extract text content (prefer plain text, fallback to HTML stripped)
+      if (parsed.text) {
+        lines.push(parsed.text.trim());
+      } else if (parsed.html) {
+        // Basic HTML stripping - remove tags but keep content
+        const stripped = parsed.html
+          .replace(/<style[^>]*>.*?<\/style>/gis, "")
+          .replace(/<script[^>]*>.*?<\/script>/gis, "")
+          .replace(/<[^>]+>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        lines.push(stripped);
+      } else {
+        lines.push("(No text content)");
+      }
+
+      // List attachments if any
+      if (parsed.attachments && parsed.attachments.length > 0) {
+        lines.push("");
+        lines.push("--- Attachments ---");
+        for (const att of parsed.attachments) {
+          lines.push(`- ${att.filename || "unnamed"} (${att.contentType}, ${att.size} bytes)`);
+        }
+      }
+
+      return lines.join("\n");
+    } catch (error) {
+      console.error("Error parsing EML file:", error);
+      return `Error parsing .eml file: ${error instanceof Error ? error.message : String(error)}`;
+    }
   }
 }
 

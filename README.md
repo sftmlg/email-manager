@@ -209,8 +209,63 @@ Re-list UNREAD INBOX and show remaining count + summary to confirm only relevant
 ### Attachments
 When drafting or sending emails with attachments, keep the body concise. Do NOT duplicate information that's already in the attachment — let the attachment speak for itself.
 
+### Pre-Send Attachment Audit (CRITICAL)
+
+**BEFORE declaring any draft with attachments "ready to send"**, verify business data in attached documents:
+
+1. **Read the JSON source** of any generated PDF attachment (Angebot, invoice, etc.)
+2. **Verify against source files**: addresses, UIDs, FN numbers, phone numbers, email addresses
+3. **Cross-reference**: `brand-context.md` (David's data), `{client}/.claude/CLAUDE.md` (client data), previous invoices
+4. **Report verification**: "Verified: sender address=Haller Straße 77, UID=ATU75309738, client=Schmid GmbH, FN 393244 a"
+
+**Why**: Fabricated business data in official documents (Angebote, Ansuchen) sent to clients causes professional damage and legal risk. A wrong UID on a Förderungsantrag can invalidate the application.
+
+### Draft Replacement Protocol (CRITICAL)
+
+When fixing an error in a previously created draft:
+
+1. **Check if the old draft still exists**: `pnpm start drafts business` — look for the subject
+2. **If old draft found**: delete it FIRST with `delete-draft`, then create corrected one
+3. **If old draft NOT found (404)**: it was already SENT. Immediately warn the user: "The previous draft was already sent. Creating a corrected version will result in a DUPLICATE email to the recipient."
+4. **Let user decide**: whether to send the corrected version (knowing it creates a duplicate) or handle it differently
+
+**Why**: A draft that returns 404 on delete was already sent. Creating a "replacement" without warning causes duplicate emails and client confusion.
+
 ### Updating Drafts
 When updating an existing draft, always delete the old draft first using `delete-draft`, then create a new one. Never leave orphan drafts in the inbox.
+
+### Email Reply Mandatory Workflow (CRITICAL)
+
+**BEFORE calling `email-manager draft --reply-to` or drafting any reply:**
+
+1. **READ FIRST**: Always fetch and read the thread to extract the actual recipient email address
+   ```bash
+   pnpm start fetch business --query "thread:19c508b4cd4ca02a" --max 1
+   # OR view specific message
+   pnpm start view business --message-id "19c65747a0a65dce"
+   ```
+
+2. **EXTRACT**: Verify the "From:" field and extract the sender's email address from the fetched email metadata
+
+3. **STATE VERIFICATION**: Output verification before drafting:
+   ```
+   Verified recipient: ulrich.zehentner@gc-gruppe.at from message 19c65747a0a65dce
+   ```
+
+4. **EXECUTE**: Use the extracted email in the draft command
+
+**NEVER use email addresses from:**
+- LLM memory or assumptions
+- Pattern-matching on names (e.g., "Zehentner" → inventing "stefan.zehentner@...")
+- Guessing based on company domain context
+- "Probably correct" reasoning
+
+**If email not found in thread → STOP and report missing data. No fabrication under any circumstance.**
+
+**Why This Matters:**
+- Wrong recipient email = professional damage, lost trust, potential data breach
+- Email threads provide structured verification source — always use them
+- This is CLIENT WORK — zero tolerance for fabricated contact data
 
 
 ## Email Threading (CRITICAL)
@@ -322,10 +377,39 @@ email-index/
 
 - PDF: `application/pdf`
 - Word: `.doc`, `.docx`
-- Excel: `.xls`, `.xlsx`
-- Images: `.png`, `.jpg`, `.gif`
-- Text: `.txt`, `.html`, `.json`
-- Archives: `.zip`
+- Excel: `.xls`, `.xlsx`, PowerPoint: `.ppt`, `.pptx`
+- Images: `.png`, `.jpg`, `.gif`, `.svg`, `.bmp`, `.tiff`, `.webp`
+- Text: `.txt`, `.html`, `.json`, `.xml`, `.csv`, `.md`, `.rtf`
+- Archives: `.zip`, `.7z`, `.rar`, `.gz`, `.tar`
+- Email formats: `.eml` (RFC 822), `.msg` (Outlook)
+
+**Note**: When .eml files are downloaded, the tool automatically parses them and saves a readable `.eml.txt` companion file with extracted headers and body content.
+
+## Invoice Forwarding Script
+
+Automated script for forwarding invoice-related emails to the invoice processing inbox.
+
+See: `INVOICE_FORWARDING.md` for full documentation.
+
+### Quick Usage
+
+```bash
+# Dry run - see what would be forwarded
+node forward-invoices.mjs
+
+# Forward invoice emails since Jan 1, 2026
+node forward-invoices.mjs --execute
+
+# Forward from specific date
+node forward-invoices.mjs --execute --since 2026-02-01
+```
+
+**Features**:
+- Searches for invoice keywords (rechnung, invoice, billing, etc.)
+- Only forwards emails with PDF attachments
+- Dry-run mode by default for safety
+- Logs all forwarded emails
+- Integrates with getmyinvoices-manager workflow
 
 ## Error Handling
 

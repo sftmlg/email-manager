@@ -232,6 +232,18 @@ async function fetchEmails(opts: FetchCommandOptions) {
             const savedPath = saveAttachmentToFolder(data, attachment, emailFolder);
             console.log(`  Saved: ${path.basename(savedPath)}`);
             attachmentCount++;
+
+            // If this is an .eml file, also save a parsed text version
+            if (attachment.filename.toLowerCase().endsWith(".eml") || attachment.mimeType === "message/rfc822") {
+              try {
+                const parsedContent = await gmail.parseEmlFile(data);
+                const txtPath = savedPath.replace(/\.eml$/i, "") + ".eml.txt";
+                fs.writeFileSync(txtPath, parsedContent, "utf-8");
+                console.log(`  Parsed: ${path.basename(txtPath)}`);
+              } catch (error) {
+                console.error(`  Warning: Could not parse .eml file:`, error);
+              }
+            }
           } catch (error) {
             console.error(`  Error: ${attachment.filename}`, error);
           }
@@ -713,14 +725,22 @@ function getMimeType(filename: string): string {
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".xls": "application/vnd.ms-excel",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".ppt": "application/vnd.ms-powerpoint",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
     ".gif": "image/gif",
+    ".svg": "image/svg+xml",
     ".txt": "text/plain",
     ".html": "text/html",
     ".json": "application/json",
+    ".xml": "application/xml",
     ".zip": "application/zip",
+    ".7z": "application/x-7z-compressed",
+    ".rar": "application/x-rar-compressed",
+    ".eml": "message/rfc822",
+    ".msg": "application/vnd.ms-outlook",
   };
   return mimeTypes[ext] || "application/octet-stream";
 }
@@ -740,16 +760,29 @@ function isRelevantMimeType(mimeType: string): boolean {
     "image/gif",
     "image/webp",
     "image/bmp",
+    "image/svg+xml",
     // Text files
     "text/plain",
     "text/csv",
     "text/html",
+    "text/markdown",
+    "text/rtf",
     // Archives
     "application/zip",
     "application/x-zip-compressed",
+    "application/x-7z-compressed",
+    "application/x-rar-compressed",
+    "application/gzip",
+    "application/x-tar",
+    // Email formats
+    "message/rfc822",           // .eml files (forwarded emails)
+    "application/vnd.ms-outlook", // .msg files (Outlook emails)
     // Other common formats
     "application/json",
     "application/xml",
+    "text/xml",
+    "application/vnd.oasis.opendocument",  // OpenDocument formats (.odt, .ods)
+    "application/x-iwork",      // Apple iWork formats
   ];
   return relevant.some((r) => mimeType.toLowerCase().includes(r.toLowerCase()));
 }
